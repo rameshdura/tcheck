@@ -1,6 +1,7 @@
 "use server";
 
 import { supabase } from "@/lib/supabase";
+import { redis } from "@/lib/redis";
 
 export type ScanStatus = 'pending' | 'approved' | 'rejected';
 
@@ -28,6 +29,15 @@ export async function saveScan(qrData: string): Promise<{ success: boolean; data
             return { success: false, error: error.message };
         }
 
+        // Log to Redis
+        try {
+            await redis.lpush('qr_scan_logs', `[${new Date().toISOString()}] NEW SCAN: ${qrData}`);
+            // Keep only the last 100 logs
+            await redis.ltrim('qr_scan_logs', 0, 99);
+        } catch (e) {
+            console.error("Redis log error:", e);
+        }
+
         return { success: true, data };
     } catch (err) {
         console.error("Unexpected error saving scan:", err);
@@ -49,9 +59,36 @@ export async function updateScanStatus(id: string, status: ScanStatus): Promise<
             return { success: false, error: error.message };
         }
 
+        // Log to Redis
+        try {
+            await redis.lpush('qr_scan_logs', `[${new Date().toISOString()}] UPDATE: Scan ${id} marked as ${status.toUpperCase()}`);
+            await redis.ltrim('qr_scan_logs', 0, 99);
+        } catch (e) {
+            console.error("Redis log error:", e);
+        }
+
         return { success: true, data };
     } catch (err) {
         console.error("Unexpected error updating scan status:", err);
         return { success: false, error: "An unexpected error occurred while updating status." };
+    }
+}
+
+export async function getAllScans(): Promise<{ success: boolean; data?: ScanRecord[]; error?: string }> {
+    try {
+        const { data, error } = await supabase
+            .from('scans')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error("Supabase fetch error:", error);
+            return { success: false, error: error.message };
+        }
+
+        return { success: true, data };
+    } catch (err) {
+        console.error("Unexpected error fetching scans:", err);
+        return { success: false, error: "An unexpected error occurred while fetching." };
     }
 }

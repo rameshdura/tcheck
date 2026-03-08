@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { saveScan, updateScanStatus, ScanRecord, ScanStatus } from "@/actions/scan-actions";
