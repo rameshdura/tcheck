@@ -1,6 +1,7 @@
 import { getAllScans } from "@/actions/scan-actions";
 import Link from "next/link";
 import RedisLogs from "./RedisLogs";
+import QRList from "./QRList";
 
 export const revalidate = 0; // Force dynamic rendering
 
@@ -34,53 +35,7 @@ export default async function AllQRsPage() {
                     </div>
                 )}
 
-                {!data || data.length === 0 ? (
-                    <div className="text-center py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800">
-                        <p className="text-lg text-zinc-500 font-medium">No QR codes scanned yet.</p>
-                        <Link href="/" className="text-blue-500 hover:text-blue-600 mt-2 inline-block">
-                            Go scan one now!
-                        </Link>
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-                        <table className="w-full text-left text-sm text-zinc-600 dark:text-zinc-400">
-                            <thead className="text-xs uppercase bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300">
-                                <tr>
-                                    <th scope="col" className="px-6 py-4 font-semibold">Status</th>
-                                    <th scope="col" className="px-6 py-4 font-semibold">QR Data</th>
-                                    <th scope="col" className="px-6 py-4 font-semibold">Scanned At</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 bg-white dark:bg-transparent">
-                                {data.map((scan) => (
-                                    <tr key={scan.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full uppercase tracking-wider
-                        ${scan.status === 'pending' ? 'bg-amber-100 text-amber-700 border border-amber-200' : ''}
-                        ${scan.status === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : ''}
-                        ${scan.status === 'rejected' ? 'bg-rose-100 text-rose-700 border border-rose-200' : ''}
-                      `}>
-                                                {scan.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 font-medium text-zinc-900 dark:text-zinc-100 break-all max-w-[300px]">
-                                            {scan.qr_data.startsWith('http') ? (
-                                                <a href={scan.qr_data} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                                                    {scan.qr_data}
-                                                </a>
-                                            ) : (
-                                                scan.qr_data
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-zinc-500">
-                                            {new Date(scan.created_at).toLocaleString()}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                <QRList initialScans={data || []} />
 
             </main>
 
