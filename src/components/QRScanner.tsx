@@ -89,29 +89,27 @@ export default function QRScanner() {
           </div>
 
           <div className="p-4 bg-zinc-100 dark:bg-zinc-950/50 flex flex-col gap-2">
-            <div className="flex gap-2 w-full">
-              <button
-                onClick={() => handleStatusUpdate('approved')}
-                disabled={activeScan.status === 'approved'}
-                className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => handleStatusUpdate('rejected')}
-                disabled={activeScan.status === 'rejected'}
-                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition"
-              >
-                Reject
-              </button>
-            </div>
-            {activeScan.status !== 'pending' && (
-              <button
-                onClick={() => handleStatusUpdate('pending')}
-                className="w-full py-2 bg-zinc-200 border border-zinc-300 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-sm font-medium text-zinc-700 rounded-lg transition"
-              >
-                Mark Pending
-              </button>
+            {activeScan.status === 'pending' ? (
+              <div className="flex gap-2 w-full">
+                <button
+                  onClick={() => handleStatusUpdate('approved')}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition"
+                >
+                  Approve Scan
+                </button>
+              </div>
+            ) : (
+              <div className="w-full py-3 bg-zinc-200/50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl flex items-center justify-center gap-2">
+                <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                  Status:
+                </span>
+                <span className={`text-sm font-bold uppercase tracking-wider
+                    ${activeScan.status === 'approved' ? 'text-emerald-600 dark:text-emerald-400' : ''}
+                    ${activeScan.status === 'rejected' ? 'text-rose-600 dark:text-rose-400' : ''}
+                  `}>
+                  {activeScan.status}
+                </span>
+              </div>
             )}
             <button
               onClick={resetScan}
