@@ -53,18 +53,34 @@ export async function syncSupabaseToRedis(expirationHours: number) {
     }
 
     try {
-        // Fetch all tickets from Supabase. We only cache valid ones!
-        // You could remove the .eq filter if you want to cache invalid ones too.
-        const { data: tickets, error: supaError } = await supabase
-            .from("tkt")
-            .select("qr, type, vendor, valid, updated_at");
-        // .eq("valid", 1); // Only fetch valid tickets to save cache space (optional)
+        // Supabase defaults to 1000 rows max per query, so we paginate in batches.
+        const PAGE_SIZE = 1000;
+        let allTickets: { qr: string; type: number; vendor: number; valid: number; updated_at: string | null }[] = [];
+        let from = 0;
+        let hasMore = true;
 
-        if (supaError) {
-            throw new Error(`Supabase error: ${supaError.message}`);
+        while (hasMore) {
+            const { data: batch, error: supaError } = await supabase
+                .from("tkt")
+                .select("qr, type, vendor, valid, updated_at")
+                .range(from, from + PAGE_SIZE - 1);
+
+            if (supaError) {
+                throw new Error(`Supabase error: ${supaError.message}`);
+            }
+
+            if (!batch || batch.length === 0) {
+                hasMore = false;
+            } else {
+                allTickets = allTickets.concat(batch);
+                from += PAGE_SIZE;
+                hasMore = batch.length === PAGE_SIZE; // If fewer rows than PAGE_SIZE, we're done
+            }
         }
 
-        if (!tickets || tickets.length === 0) {
+        const tickets = allTickets;
+
+        if (tickets.length === 0) {
             return { success: false, error: "No tickets found in database to sync." };
         }
 

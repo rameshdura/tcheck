@@ -3,17 +3,8 @@
 import { useState, useEffect } from "react";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { validateTicketsBulk, TicketValidationResult, ValidationSummary, getTicketDetails, TicketRecord } from "@/actions/scan-actions";
+import { getTypeName, getVendorName } from "@/lib/ticket-types";
 
-const TYPE_MAP: Record<number, string> = {
-  1: 'STANDARD',
-  2: 'VIP',
-  3: 'EARLY BIRD'
-};
-
-const VENDOR_MAP: Record<number, string> = {
-  1: 'ticketkhai',
-  2: 'yohoticket'
-};
 
 export default function QRScanner() {
   const [isScanning, setIsScanning] = useState(true);
@@ -382,11 +373,11 @@ export default function QRScanner() {
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Ticket Type</p>
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{TYPE_MAP[selectedTicketDetails.type] || `Type ${selectedTicketDetails.type}`}</p>
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{getTypeName(selectedTicketDetails.type)}</p>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Vendor</p>
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{VENDOR_MAP[selectedTicketDetails.vendor] || `Vendor ${selectedTicketDetails.vendor}`}</p>
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{getVendorName(selectedTicketDetails.vendor)}</p>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">User ID</p>

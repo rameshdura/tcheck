@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { redis } from "@/lib/redis";
+import { getTypeName, getVendorName } from "@/lib/ticket-types";
 
 export type ScanStatus = 'pending' | 'approved' | 'rejected';
 
@@ -362,16 +363,6 @@ export interface TicketValidationResult {
     vendor?: string;
 }
 
-const TYPE_MAP: Record<number, string> = {
-    1: 'STANDARD',
-    2: 'VIP',
-    3: 'EARLY BIRD'
-};
-
-const VENDOR_MAP: Record<number, string> = {
-    1: 'ticketkhai',
-    2: 'yohoticket'
-};
 
 export async function validateTicketsBulk(stagedQRs: string[]): Promise<{ success: boolean; results?: TicketValidationResult[]; summary?: ValidationSummary; error?: string }> {
     if (!stagedQRs || stagedQRs.length === 0) {
@@ -422,8 +413,8 @@ export async function validateTicketsBulk(stagedQRs: string[]): Promise<{ succes
                 continue;
             }
 
-            const typeName = TYPE_MAP[ticketData.type] || `TYPE_${ticketData.type}`;
-            const vendorName = VENDOR_MAP[ticketData.vendor] || `VENDOR_${ticketData.vendor}`;
+            const typeName = getTypeName(ticketData.type);
+            const vendorName = getVendorName(ticketData.vendor);
 
             if (ticketData.valid === 1) {
                 // Ticket is valid and unused! Mark as used.
