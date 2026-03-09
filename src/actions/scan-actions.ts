@@ -16,32 +16,33 @@ export interface ScanRecord {
 
 export async function saveScan(qrData: string): Promise<{ success: boolean; data?: ScanRecord; error?: string }> {
     try {
-        const { data, error } = await supabase
-            .from('scans')
-            .insert([
-                { qr_data: qrData, status: 'pending' }
-            ])
-            .select()
-            .single();
+        const tempId = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const newRecord: ScanRecord = {
+            id: tempId,
+            qr_data: qrData,
+            status: 'pending',
+            user_id: null,
+            created_at: now,
+            updated_at: now,
+        };
 
-        if (error) {
-            console.error("Supabase insert error:", error);
-            return { success: false, error: error.message };
-        }
-
-        // Log to Redis and invalidate cache
+        // Queue for background insertion
         try {
-            await redis.lpush('qr_scan_logs', `[${new Date().toISOString()}] NEW SCAN: ${qrData}`);
-            // Keep only the last 100 logs
+            await redis.lpush('pending_scan_inserts', newRecord);
+
+            // Log to Redis
+            await redis.lpush('qr_scan_logs', `[${now}] QUEUED INSERT: ${qrData}`);
             await redis.ltrim('qr_scan_logs', 0, 99);
 
-            // Invalidate cache if a new scan happens
-            await redis.del('all_scans_cache');
+            // Update cache immediately for "instant" feel
+            const cachedData = await redis.get<ScanRecord[]>('all_scans_cache') || [];
+            await redis.set('all_scans_cache', [newRecord, ...cachedData]);
         } catch (e) {
-            console.error("Redis error:", e);
+            console.error("Redis error in saveScan:", e);
         }
 
-        return { success: true, data };
+        return { success: true, data: newRecord };
     } catch (err) {
         console.error("Unexpected error saving scan:", err);
         return { success: false, error: "An unexpected error occurred while saving." };
@@ -165,49 +166,110 @@ export async function clearCache(): Promise<{ success: boolean; error?: string }
 
 export async function syncCacheToDatabase(): Promise<{ success: boolean; count?: number; error?: string }> {
     try {
-        // Fetch pending updates
-        const pendingUpdatesObj = await redis.lrange('pending_status_updates', 0, -1);
-        if (!pendingUpdatesObj || pendingUpdatesObj.length === 0) {
-            return { success: true, count: 0 };
-        }
-
         let count = 0;
-        const updatesMap = new Map<string, ScanStatus>();
 
-        for (const item of pendingUpdatesObj) {
-            let parsed;
-            if (typeof item === 'string') {
-                try { parsed = JSON.parse(item); } catch (e) { continue; }
-            } else {
-                parsed = item; // usually @upstash/redis auto-parses objects
+        // Atomically fetch and clear pending lists using a pipeline to prevent 
+        // duplicate insertions if the user clicks "Sync" multiple times quickly.
+        const pipeline = redis.pipeline();
+        pipeline.lrange('pending_scan_inserts', 0, -1);
+        pipeline.del('pending_scan_inserts');
+        pipeline.lrange('pending_status_updates', 0, -1);
+        pipeline.del('pending_status_updates');
+
+        const results = await pipeline.exec();
+
+        // results[0] is the result of lrange 'pending_scan_inserts'
+        // results[2] is the result of lrange 'pending_status_updates'
+        const pendingInsertsObj = results[0] as unknown[];
+        const pendingUpdatesObj = results[2] as unknown[];
+
+        // 1. Process pending inserts
+        if (pendingInsertsObj && pendingInsertsObj.length > 0) {
+            const insertsToProcess: ScanRecord[] = [];
+
+            for (const item of pendingInsertsObj) {
+                let parsed;
+                if (typeof item === 'string') {
+                    try { parsed = JSON.parse(item); } catch (e) { continue; }
+                } else {
+                    parsed = item; // auto-parsed
+                }
+
+                if (parsed && typeof parsed === 'object' && parsed.id && parsed.qr_data) {
+                    insertsToProcess.push(parsed as ScanRecord);
+                }
             }
 
-            if (parsed && typeof parsed === 'object' && parsed.id && parsed.status) {
-                if (!updatesMap.has(parsed.id)) {
-                    updatesMap.set(parsed.id, parsed.status);
+            if (insertsToProcess.length > 0) {
+                // Reverse since lpush puts newest at index 0, we want to insert oldest first
+                insertsToProcess.reverse();
+
+                const { error } = await supabase
+                    .from('scans')
+                    .insert(insertsToProcess.map(scan => ({
+                        id: scan.id,
+                        qr_data: scan.qr_data,
+                        status: scan.status,
+                        user_id: scan.user_id,
+                        created_at: scan.created_at,
+                        updated_at: scan.updated_at
+                    })));
+
+                if (error) {
+                    console.error("Failed to insert pending scans:", error);
+                    // If it totally fails, we should ideally put it back in Redis,
+                    // but for simplicity in this demo we might just lose the retry state
+                    // Let's at least push them back so they aren't lost completely.
+                    const restorePipeline = redis.pipeline();
+                    for (const item of insertsToProcess) {
+                        restorePipeline.lpush('pending_scan_inserts', item);
+                    }
+                    await restorePipeline.exec();
+                    return { success: false, error: "Database error during insert sync." };
+                } else {
+                    count += insertsToProcess.length;
                 }
             }
         }
 
-        for (const [id, status] of updatesMap.entries()) {
-            const { error } = await supabase
-                .from('scans')
-                .update({ status })
-                .eq('id', id);
+        // 2. Process pending updates
+        if (pendingUpdatesObj && pendingUpdatesObj.length > 0) {
+            const updatesMap = new Map<string, ScanStatus>();
 
-            if (error) {
-                console.error(`Failed to update ${id} to ${status}:`, error);
-            } else {
-                count++;
+            for (const item of pendingUpdatesObj) {
+                let parsed;
+                if (typeof item === 'string') {
+                    try { parsed = JSON.parse(item); } catch (e) { continue; }
+                } else {
+                    parsed = item; // auto-parsed
+                }
+
+                if (parsed && typeof parsed === 'object' && parsed.id && parsed.status) {
+                    if (!updatesMap.has(parsed.id)) {
+                        updatesMap.set(parsed.id, parsed.status);
+                    }
+                }
+            }
+
+            for (const [id, status] of updatesMap.entries()) {
+                const { error } = await supabase
+                    .from('scans')
+                    .update({ status })
+                    .eq('id', id);
+
+                if (error) {
+                    console.error(`Failed to update ${id} to ${status}:`, error);
+                } else {
+                    count++;
+                }
             }
         }
 
-        // Log to Redis
-        await redis.lpush('qr_scan_logs', `[${new Date().toISOString()}] ADMIN: Synced ${count} cached updates to Supabase.`);
-        await redis.ltrim('qr_scan_logs', 0, 99);
-
-        // Clear the pending updates list
-        await redis.del('pending_status_updates');
+        if (count > 0) {
+            // Log to Redis
+            await redis.lpush('qr_scan_logs', `[${new Date().toISOString()}] ADMIN: Synced ${count} cached operations to Supabase.`);
+            await redis.ltrim('qr_scan_logs', 0, 99);
+        }
 
         return { success: true, count };
     } catch (err) {
@@ -215,3 +277,5 @@ export async function syncCacheToDatabase(): Promise<{ success: boolean; count?:
         return { success: false, error: "An unexpected error occurred while syncing." };
     }
 }
+
+
