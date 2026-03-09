@@ -2,6 +2,7 @@ import { getAllScans } from "@/actions/scan-actions";
 import Link from "next/link";
 import RedisLogs from "./RedisLogs";
 import QRList from "./QRList";
+import CacheControls from "./CacheControls";
 
 export const revalidate = 0; // Force dynamic rendering
 
@@ -28,6 +29,8 @@ export default async function AllQRsPage() {
                         ← Back to Scanner
                     </Link>
                 </div>
+
+                <CacheControls />
 
                 {error && (
                     <div className="p-4 bg-red-50 text-red-600 rounded-xl mb-6 border border-red-200">
