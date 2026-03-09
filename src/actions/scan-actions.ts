@@ -314,3 +314,170 @@ export async function getPaginatedTickets(page: number, limit: number = 10): Pro
         return { success: false, error: "An unexpected error occurred while fetching." };
     }
 }
+
+// ---------------------------------------------------------
+// NEW REDIS-BASED VALIDATION LOGIC
+// ---------------------------------------------------------
+
+export interface ValidationSummary {
+    total: number;
+    validCount: number;
+    invalidCount: number;
+    notFoundCount: number;
+    types: Record<string, number>;
+}
+
+export interface TicketValidationResult {
+    qr: string;
+    status: 'VALID' | 'USED' | 'NOT_FOUND' | 'ERROR';
+    type?: string;
+    vendor?: string;
+}
+
+const TYPE_MAP: Record<number, string> = {
+    1: 'STANDARD',
+    2: 'VIP',
+    3: 'EARLY BIRD'
+};
+
+const VENDOR_MAP: Record<number, string> = {
+    1: 'ticketkhai',
+    2: 'yohoticket'
+};
+
+export async function validateTicketsBulk(stagedQRs: string[]): Promise<{ success: boolean; results?: TicketValidationResult[]; summary?: ValidationSummary; error?: string }> {
+    if (!stagedQRs || stagedQRs.length === 0) {
+        return { success: false, error: "No QR codes provided to validate." };
+    }
+
+    try {
+        const pipeline = redis.pipeline();
+        for (const qr of stagedQRs) {
+            pipeline.get(`ticket:${qr}`);
+        }
+
+        const redisResults = await pipeline.exec();
+        const validationResults: TicketValidationResult[] = [];
+        const updatePipeline = redis.pipeline();
+
+        const summary: ValidationSummary = {
+            total: stagedQRs.length,
+            validCount: 0,
+            invalidCount: 0,
+            notFoundCount: 0,
+            types: {} // e.g {"VIP": 2, "STANDARD": 1}
+        };
+
+        const pendingUpdates: string[] = [];
+
+        for (let i = 0; i < stagedQRs.length; i++) {
+            const qr = stagedQRs[i];
+            const rawRedisResult = redisResults[i] as unknown;
+
+            if (!rawRedisResult) {
+                // Key doesn't exist
+                validationResults.push({ qr, status: 'NOT_FOUND' });
+                summary.notFoundCount++;
+                continue;
+            }
+
+            let ticketData;
+            if (typeof rawRedisResult === 'string') {
+                try { ticketData = JSON.parse(rawRedisResult); } catch (e) { /* ignore */ }
+            } else {
+                ticketData = rawRedisResult;
+            }
+
+            if (!ticketData) {
+                validationResults.push({ qr, status: 'ERROR' });
+                summary.invalidCount++;
+                continue;
+            }
+
+            const typeName = TYPE_MAP[ticketData.type] || `TYPE_${ticketData.type}`;
+            const vendorName = VENDOR_MAP[ticketData.vendor] || `VENDOR_${ticketData.vendor}`;
+
+            if (ticketData.valid === 1) {
+                // Ticket is valid and unused! Mark as used.
+                validationResults.push({ qr, status: 'VALID', type: typeName, vendor: vendorName });
+                summary.validCount++;
+
+                // Track type count for the summary phrasing
+                if (!summary.types[typeName]) summary.types[typeName] = 0;
+                summary.types[typeName]++;
+
+                // 1. Update Redis instantly so it can't be scanned again
+                ticketData.valid = 0;
+                // Preserve expiration - we assume it has one, for simplicity we'll set it to 24h if we overwrite
+                updatePipeline.set(`ticket:${qr}`, JSON.stringify(ticketData), { ex: 24 * 60 * 60 });
+
+                // 2. Queue for database sync later
+                pendingUpdates.push(qr);
+
+            } else {
+                // Ticket exists but is already marked as valid=0 (used)
+                validationResults.push({ qr, status: 'USED', type: typeName, vendor: vendorName });
+                summary.invalidCount++;
+            }
+        }
+
+        // Execute any instant redis updates
+        if (pendingUpdates.length > 0) {
+            await updatePipeline.exec();
+
+            // Push to the queue that the master DB sync function will read
+            const queuePipeline = redis.pipeline();
+            for (const qr of pendingUpdates) {
+                queuePipeline.lpush('pending_ticket_updates', qr);
+            }
+            await queuePipeline.exec();
+        }
+
+        return { success: true, results: validationResults, summary };
+
+    } catch (err) {
+        console.error("Error during bulk validation:", err);
+        return { success: false, error: "An error occurred while validating tickets via Redis." };
+    }
+}
+
+export async function syncTicketsToDatabase(): Promise<{ success: boolean; count?: number; error?: string }> {
+    try {
+        const pipeline = redis.pipeline();
+        pipeline.lrange('pending_ticket_updates', 0, -1);
+        pipeline.del('pending_ticket_updates');
+
+        const results = await pipeline.exec();
+        const pendingUpdates = results[0] as string[];
+
+        if (!pendingUpdates || pendingUpdates.length === 0) {
+            return { success: true, count: 0 };
+        }
+
+        // Deduplicate
+        const uniqueQRs = Array.from(new Set(pendingUpdates));
+
+        // Let's do a bulk update to supabase.
+        // Supabase "in" operator is best here: update valid=0 where qr in (uniqueQRs)
+        const { error } = await supabase
+            .from('tkt')
+            .update({ valid: 0 })
+            .in('qr', uniqueQRs);
+
+        if (error) {
+            console.error("Failed to sync used tickets to DB:", error);
+            // Restore to Redis so we don't lose them
+            const restorePipeline = redis.pipeline();
+            for (const qr of pendingUpdates) {
+                restorePipeline.lpush('pending_ticket_updates', qr);
+            }
+            await restorePipeline.exec();
+            return { success: false, error: "Failed to sync to database." };
+        }
+
+        return { success: true, count: uniqueQRs.length };
+    } catch (err) {
+        console.error("Unexpected error syncing used tickets to DB:", err);
+        return { success: false, error: "An unexpected error occurred during DB sync." };
+    }
+}

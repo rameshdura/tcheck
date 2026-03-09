@@ -7,6 +7,7 @@ import { FileUp, Save, AlertCircle, CheckCircle2, Loader2, ArrowLeft, DatabaseZa
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { syncSupabaseToRedis } from "@/actions/redis-actions";
+import { syncTicketsToDatabase } from "@/actions/scan-actions";
 
 interface TicketData {
     qr: string;
@@ -33,6 +34,11 @@ export default function ImportPage() {
     const [redisStatus, setRedisStatus] = useState<"idle" | "success" | "error">("idle");
     const [redisMessage, setRedisMessage] = useState("");
 
+    // Upstash to DB sync states
+    const [dbSyncLoading, setDbSyncLoading] = useState(false);
+    const [dbSyncStatus, setDbSyncStatus] = useState<"idle" | "success" | "error">("idle");
+    const [dbSyncMessage, setDbSyncMessage] = useState("");
+
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -42,6 +48,8 @@ export default function ImportPage() {
         setMessage("");
         setRedisStatus("idle");
         setRedisMessage("");
+        setDbSyncStatus("idle");
+        setDbSyncMessage("");
 
         Papa.parse<any>(file, {
             header: true,
@@ -120,6 +128,31 @@ export default function ImportPage() {
         }
     };
 
+    const syncToDatabase = async () => {
+        setDbSyncLoading(true);
+        setDbSyncStatus("idle");
+        setDbSyncMessage("");
+
+        try {
+            const result = await syncTicketsToDatabase();
+
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+
+            setDbSyncStatus("success");
+            setDbSyncMessage(result.count === 0
+                ? "No new used tickets to sync."
+                : `Successfully updated ${result.count} used tickets back to database!`);
+        } catch (error: any) {
+            console.error("DB sync error:", error);
+            setDbSyncStatus("error");
+            setDbSyncMessage(error.message || "Failed to sync to database.");
+        } finally {
+            setDbSyncLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-neutral-950 text-neutral-50 p-6 font-sans">
             <div className="max-w-5xl mx-auto space-y-8">
@@ -185,6 +218,46 @@ export default function ImportPage() {
                             <div className="flex items-center gap-2 text-sm text-emerald-500 mt-1">
                                 <CheckCircle2 size={16} />
                                 <span>{redisMessage}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Upstash to Database Sync Section */}
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 mt-4">
+                    <div>
+                        <h2 className="text-xl font-semibold flex items-center gap-2">
+                            <Save className="text-blue-500" /> Cache to Database
+                        </h2>
+                        <p className="text-sm text-neutral-400 mt-1 max-w-lg">
+                            Sync newly scanned (used) tickets from your Upstash Redis cache back to the Supabase database for permanent storage.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 w-full md:w-auto">
+                        <Button
+                            onClick={syncToDatabase}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl px-6 w-full sm:w-auto shrink-0 transition-all"
+                            disabled={dbSyncLoading || dbSyncStatus === "success"}
+                        >
+                            {dbSyncLoading ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Syncing...</>
+                            ) : (
+                                <><Save className="mr-2 h-4 w-4" /> Sync to DB</>
+                            )}
+                        </Button>
+
+                        {/* DB Sync Status Messages */}
+                        {dbSyncStatus === "error" && (
+                            <div className="flex items-center justify-end gap-2 text-sm text-red-500 mt-1">
+                                <AlertCircle size={16} />
+                                <span>{dbSyncMessage}</span>
+                            </div>
+                        )}
+                        {dbSyncStatus === "success" && (
+                            <div className="flex items-center justify-end gap-2 text-sm text-blue-500 mt-1">
+                                <CheckCircle2 size={16} />
+                                <span>{dbSyncMessage}</span>
                             </div>
                         )}
                     </div>
