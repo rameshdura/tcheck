@@ -361,13 +361,13 @@ export interface TicketValidationResult {
     vendor?: string;
 }
 
-export const TYPE_MAP: Record<number, string> = {
+const TYPE_MAP: Record<number, string> = {
     1: 'STANDARD',
     2: 'VIP',
     3: 'EARLY BIRD'
 };
 
-export const VENDOR_MAP: Record<number, string> = {
+const VENDOR_MAP: Record<number, string> = {
     1: 'ticketkhai',
     2: 'yohoticket'
 };

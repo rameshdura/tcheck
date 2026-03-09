@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { Scanner } from "@yudiel/react-qr-scanner";
-import { validateTicketsBulk, TicketValidationResult, ValidationSummary, getTicketDetails, TicketRecord, TYPE_MAP, VENDOR_MAP } from "@/actions/scan-actions";
+import { validateTicketsBulk, TicketValidationResult, ValidationSummary, getTicketDetails, TicketRecord } from "@/actions/scan-actions";
+
+const TYPE_MAP: Record<number, string> = {
+  1: 'STANDARD',
+  2: 'VIP',
+  3: 'EARLY BIRD'
+};
+
+const VENDOR_MAP: Record<number, string> = {
+  1: 'ticketkhai',
+  2: 'yohoticket'
+};
 
 export default function QRScanner() {
   const [isScanning, setIsScanning] = useState(true);
