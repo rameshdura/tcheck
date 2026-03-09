@@ -1,4 +1,4 @@
-import { getAllScans } from "@/actions/scan-actions";
+import { getPaginatedTickets } from "@/actions/scan-actions";
 import Link from "next/link";
 import RedisLogs from "./RedisLogs";
 import QRList from "./QRList";
@@ -6,8 +6,12 @@ import CacheControls from "./CacheControls";
 
 export const revalidate = 0; // Force dynamic rendering
 
-export default async function AllQRsPage() {
-    const { success, data, error } = await getAllScans();
+export default async function AllQRsPage(props: { searchParams: Promise<{ page?: string }> }) {
+    const searchParams = await props.searchParams;
+    const currentPage = parseInt(searchParams.page || "1", 10);
+    const pageSize = 10;
+
+    const { success, data, count, error } = await getPaginatedTickets(currentPage, pageSize);
 
     return (
         <div className="flex min-h-screen bg-zinc-50 font-sans dark:bg-zinc-950 p-4 gap-4 flex-col lg:flex-row items-start justify-center">
@@ -22,23 +26,36 @@ export default async function AllQRsPage() {
                             Currently stored in your Supabase database.
                         </p>
                     </div>
-                    <Link
-                        href="/"
-                        className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium rounded-lg transition-colors text-sm border border-zinc-200 dark:border-zinc-800"
-                    >
-                        ← Back to Scanner
-                    </Link>
+                    <div className="flex gap-2">
+                        <Link
+                            href="/import"
+                            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors text-sm"
+                        >
+                            Import CSV
+                        </Link>
+                        <Link
+                            href="/"
+                            className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium rounded-lg transition-colors text-sm border border-zinc-200 dark:border-zinc-800"
+                        >
+                            ← Back to Scanner
+                        </Link>
+                    </div>
                 </div>
 
                 <CacheControls />
 
                 {error && (
                     <div className="p-4 bg-red-50 text-red-600 rounded-xl mb-6 border border-red-200">
-                        <strong>Error loading scans:</strong> {error}
+                        <strong>Error loading tickets:</strong> {error}
                     </div>
                 )}
 
-                <QRList initialScans={data || []} />
+                <QRList
+                    tickets={data || []}
+                    totalCount={count || 0}
+                    currentPage={currentPage}
+                    pageSize={pageSize}
+                />
 
             </main>
 

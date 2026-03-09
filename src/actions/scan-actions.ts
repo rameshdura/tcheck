@@ -278,4 +278,39 @@ export async function syncCacheToDatabase(): Promise<{ success: boolean; count?:
     }
 }
 
+// NEW Paginatable Fetcher for the new 'tkt' table
+export interface TicketRecord {
+    id: string;
+    qr: string;
+    name: string;
+    typeid: string;
+    type: number;
+    created: string;
+    userid: string;
+    transactionid: string;
+    valid: number;
+    vendor: number;
+}
 
+export async function getPaginatedTickets(page: number, limit: number = 10): Promise<{ success: boolean; data?: TicketRecord[]; count?: number; error?: string }> {
+    try {
+        const from = (page - 1) * limit;
+        const to = from + limit - 1;
+
+        const { data, error, count } = await supabase
+            .from('tkt')
+            .select('*', { count: 'exact' })
+            .order('created', { ascending: false })
+            .range(from, to);
+
+        if (error) {
+            console.error("Supabase paginated fetch error:", error);
+            return { success: false, error: error.message };
+        }
+
+        return { success: true, data: data as TicketRecord[], count: count || 0 };
+    } catch (err) {
+        console.error("Unexpected error fetching paginated tickets:", err);
+        return { success: false, error: "An unexpected error occurred while fetching." };
+    }
+}
