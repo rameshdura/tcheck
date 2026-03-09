@@ -361,13 +361,13 @@ export interface TicketValidationResult {
     vendor?: string;
 }
 
-const TYPE_MAP: Record<number, string> = {
+export const TYPE_MAP: Record<number, string> = {
     1: 'STANDARD',
     2: 'VIP',
     3: 'EARLY BIRD'
 };
 
-const VENDOR_MAP: Record<number, string> = {
+export const VENDOR_MAP: Record<number, string> = {
     1: 'ticketkhai',
     2: 'yohoticket'
 };
@@ -453,16 +453,14 @@ export async function validateTicketsBulk(stagedQRs: string[]): Promise<{ succes
             }
         }
 
-        // Execute any instant redis updates
+        // Execute any instant redis updates and queueing together
         if (pendingUpdates.length > 0) {
-            await updatePipeline.exec();
-
-            // Push to the queue that the master DB sync function will read
-            const queuePipeline = redis.pipeline();
+            // Push to the queue that the master DB sync function will read, on the same pipeline
             for (const updateStr of pendingUpdates) {
-                queuePipeline.lpush('pending_ticket_updates', updateStr);
+                updatePipeline.lpush('pending_ticket_updates', updateStr);
             }
-            await queuePipeline.exec();
+            // One single round-trip for all cache updates AND queueing!
+            await updatePipeline.exec();
         }
 
         return { success: true, results: validationResults, summary };

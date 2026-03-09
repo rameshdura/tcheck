@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Scanner } from "@yudiel/react-qr-scanner";
-import { validateTicketsBulk, TicketValidationResult, ValidationSummary, getTicketDetails, TicketRecord } from "@/actions/scan-actions";
+import { validateTicketsBulk, TicketValidationResult, ValidationSummary, getTicketDetails, TicketRecord, TYPE_MAP, VENDOR_MAP } from "@/actions/scan-actions";
 
 export default function QRScanner() {
   const [isScanning, setIsScanning] = useState(true);
@@ -352,17 +352,22 @@ export default function QRScanner() {
 
                   {/* Core Data Grid */}
                   <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 col-span-2">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Customer Name</p>
+                      <p className="font-bold text-zinc-900 dark:text-zinc-100 truncate" title={selectedTicketDetails.name}>{selectedTicketDetails.name || 'N/A'}</p>
+                    </div>
+
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Type ID</p>
                       <p className="font-semibold text-zinc-900 dark:text-zinc-100 truncate" title={selectedTicketDetails.typeid}>{selectedTicketDetails.typeid}</p>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Type Data</p>
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{selectedTicketDetails.type}</p>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Ticket Type</p>
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{TYPE_MAP[selectedTicketDetails.type] || `Type ${selectedTicketDetails.type}`}</p>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Vendor ID</p>
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{selectedTicketDetails.vendor}</p>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Vendor</p>
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{VENDOR_MAP[selectedTicketDetails.vendor] || `Vendor ${selectedTicketDetails.vendor}`}</p>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">User ID</p>
@@ -383,12 +388,18 @@ export default function QRScanner() {
                   {/* Timestamps */}
                   <div className="space-y-2 mt-2">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-zinc-500 font-medium">Created At:</span>
-                      <span className="text-zinc-900 dark:text-zinc-300 font-mono">{new Date(selectedTicketDetails.created).toLocaleString()}</span>
+                      <span className="text-zinc-500 font-medium">Created At (JST):</span>
+                      <span className="text-zinc-900 dark:text-zinc-300 font-mono">
+                        {new Date(selectedTicketDetails.created).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", hour12: false })}
+                      </span>
                     </div>
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-zinc-500 font-medium">Checked/Updated:</span>
-                      <span className="text-zinc-900 dark:text-zinc-300 font-mono">{selectedTicketDetails.updated_at ? new Date(selectedTicketDetails.updated_at).toLocaleString() : 'Never'}</span>
+                      <span className="text-zinc-500 font-medium">Checked At (JST):</span>
+                      <span className="text-zinc-900 dark:text-zinc-300 font-mono">
+                        {selectedTicketDetails.updated_at
+                          ? new Date(selectedTicketDetails.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", hour12: false })
+                          : 'Never'}
+                      </span>
                     </div>
                   </div>
                 </div>
