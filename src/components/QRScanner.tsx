@@ -364,8 +364,16 @@ export default function QRScanner() {
                   {/* Core Data Grid */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 col-span-2">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Customer Name</p>
-                      <p className="font-bold text-zinc-900 dark:text-zinc-100 truncate" title={selectedTicketDetails.name}>{selectedTicketDetails.name || 'N/A'}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Customer Name</p>
+                          <p className="font-bold text-zinc-900 dark:text-zinc-100 truncate" title={selectedTicketDetails.name}>{selectedTicketDetails.name || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Phone Number</p>
+                          <p className="font-bold text-zinc-900 dark:text-zinc-100 truncate" title={selectedTicketDetails.phone}>{selectedTicketDetails.phone || 'N/A'}</p>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">

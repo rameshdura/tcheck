@@ -1,8 +1,6 @@
 import { getPaginatedTickets } from "@/actions/scan-actions";
 import Link from "next/link";
-import RedisLogs from "./RedisLogs";
 import QRList from "./QRList";
-import CacheControls from "./CacheControls";
 
 export const revalidate = 0; // Force dynamic rendering
 
@@ -42,8 +40,6 @@ export default async function AllQRsPage(props: { searchParams: Promise<{ page?:
                     </div>
                 </div>
 
-                <CacheControls />
-
                 {error && (
                     <div className="p-4 bg-red-50 text-red-600 rounded-xl mb-6 border border-red-200">
                         <strong>Error loading tickets:</strong> {error}
@@ -58,9 +54,6 @@ export default async function AllQRsPage(props: { searchParams: Promise<{ page?:
                 />
 
             </main>
-
-            {/* Redis Live Logs Sidebar */}
-            <RedisLogs />
         </div>
     );
 }

@@ -283,6 +283,7 @@ export interface TicketRecord {
     id: string;
     qr: string;
     name: string;
+    phone?: string;
     typeid: string;
     type: number;
     created: string;

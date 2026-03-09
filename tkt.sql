@@ -2,6 +2,7 @@ CREATE TABLE tkt (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   qr text UNIQUE NOT NULL,
   name text,
+  phone text,
   typeid text,
   type smallint CHECK (type BETWEEN 1 AND 9),
   created timestamp with time zone,

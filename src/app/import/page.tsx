@@ -12,9 +12,11 @@ import { syncTicketsToDatabase } from "@/actions/scan-actions";
 interface TicketData {
     qr: string;
     name: string;
+    phone?: string;
     typeid: string;
     type: number;
     created: string;
+    updated_at?: string;
     userid: string;
     transactionid: string;
     valid: number;
@@ -57,17 +59,22 @@ export default function ImportPage() {
             skipEmptyLines: true,
             complete: (results) => {
                 // Transform and validate the parsed data
-                const transformedData: TicketData[] = results.data.map((row) => ({
-                    qr: String(row.qr || ""),
-                    name: String(row.name || ""),
-                    typeid: String(row.typeid || ""),
-                    type: parseInt(row.type) || 1,
-                    created: String(row.created || ""),
-                    userid: String(row.userId || ""),
-                    transactionid: String(row.transactionId || ""),
-                    valid: parseInt(row.valid) === 1 ? 1 : 0,
-                    vendor: parseInt(row.vendor) === 2 ? 2 : 1,
-                })).filter(row => row.qr !== ""); // Basic validation: require QR
+                const transformedData: TicketData[] = results.data.map((row) => {
+                    const ticket: TicketData = {
+                        qr: String(row.qr || ""),
+                        name: String(row.name || ""),
+                        typeid: String(row.typeid || ""),
+                        type: parseInt(row.type) || 1,
+                        created: String(row.created || ""),
+                        userid: String(row.userId || ""),
+                        transactionid: String(row.transactionId || ""),
+                        valid: parseInt(row.valid) === 1 ? 1 : 0,
+                        vendor: parseInt(row.vendor) === 2 ? 2 : 1,
+                    };
+                    if (row.phone) ticket.phone = String(row.phone);
+                    if (row.updated_at) ticket.updated_at = String(row.updated_at);
+                    return ticket;
+                }).filter(row => row.qr !== ""); // Basic validation: require QR
 
                 setData(transformedData);
             },
@@ -381,6 +388,7 @@ export default function ImportPage() {
                                         <tr>
                                             <th className="px-4 py-3 font-medium">QR / Code</th>
                                             <th className="px-4 py-3 font-medium">Name</th>
+                                            <th className="px-4 py-3 font-medium">Phone</th>
                                             <th className="px-4 py-3 font-medium">Type</th>
                                             <th className="px-4 py-3 font-medium">Vendor</th>
                                             <th className="px-4 py-3 font-medium">Valid</th>
@@ -391,6 +399,7 @@ export default function ImportPage() {
                                             <tr key={i} className="hover:bg-neutral-800/30 transition-colors">
                                                 <td className="px-4 py-3 font-mono text-xs text-emerald-400 truncate max-w-[150px]">{row.qr}</td>
                                                 <td className="px-4 py-3 truncate max-w-[150px]">{row.name}</td>
+                                                <td className="px-4 py-3 truncate max-w-[150px]">{row.phone || "-"}</td>
                                                 <td className="px-4 py-3">
                                                     <span className="bg-neutral-800 px-2 py-1 rounded text-xs">{row.typeid} ({row.type})</span>
                                                 </td>
