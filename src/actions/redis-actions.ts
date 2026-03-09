@@ -57,7 +57,7 @@ export async function syncSupabaseToRedis(expirationHours: number) {
         // You could remove the .eq filter if you want to cache invalid ones too.
         const { data: tickets, error: supaError } = await supabase
             .from("tkt")
-            .select("qr, type, vendor, valid");
+            .select("qr, type, vendor, valid, updated_at");
         // .eq("valid", 1); // Only fetch valid tickets to save cache space (optional)
 
         if (supaError) {
@@ -78,7 +78,8 @@ export async function syncSupabaseToRedis(expirationHours: number) {
             const value = JSON.stringify({
                 type: ticket.type,
                 valid: ticket.valid,
-                vendor: ticket.vendor
+                vendor: ticket.vendor,
+                updated_at: ticket.updated_at
             });
 
             // Set key with EXPIRE. This OVERWRITES existing keys, naturally avoiding duplicates.
@@ -91,5 +92,15 @@ export async function syncSupabaseToRedis(expirationHours: number) {
     } catch (error: any) {
         console.error("Redis sync error:", error);
         return { success: false, error: error.message || "Failed to sync Supabase to Redis" };
+    }
+}
+
+export async function clearRedisCache() {
+    try {
+        await redis.flushdb();
+        return { success: true };
+    } catch (error: any) {
+        console.error("Redis clear cache error:", error);
+        return { success: false, error: error.message || "Failed to clear Redis cache" };
     }
 }

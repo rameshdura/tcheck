@@ -3,10 +3,10 @@
 import { useState } from "react";
 import Papa from "papaparse";
 import { supabase } from "@/lib/supabase";
-import { FileUp, Save, AlertCircle, CheckCircle2, Loader2, ArrowLeft, DatabaseZap } from "lucide-react";
+import { FileUp, Save, AlertCircle, CheckCircle2, Loader2, ArrowLeft, DatabaseZap, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { syncSupabaseToRedis } from "@/actions/redis-actions";
+import { syncSupabaseToRedis, clearRedisCache } from "@/actions/redis-actions";
 import { syncTicketsToDatabase } from "@/actions/scan-actions";
 
 interface TicketData {
@@ -33,6 +33,7 @@ export default function ImportPage() {
     const [redisLoading, setRedisLoading] = useState(false);
     const [redisStatus, setRedisStatus] = useState<"idle" | "success" | "error">("idle");
     const [redisMessage, setRedisMessage] = useState("");
+    const [clearingCache, setClearingCache] = useState(false);
 
     // Upstash to DB sync states
     const [dbSyncLoading, setDbSyncLoading] = useState(false);
@@ -128,6 +129,33 @@ export default function ImportPage() {
         }
     };
 
+    const handleClearCache = async () => {
+        if (!window.confirm("Are you sure you want to clear the Redis cache? We might loose changes!")) {
+            return;
+        }
+
+        setClearingCache(true);
+        setRedisStatus("idle");
+        setRedisMessage("");
+
+        try {
+            const result = await clearRedisCache();
+
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+
+            setRedisStatus("success");
+            setRedisMessage("Redis cache cleared successfully");
+        } catch (error: any) {
+            console.error("Redis clear cache error:", error);
+            setRedisStatus("error");
+            setRedisMessage(error.message || "Failed to clear cache.");
+        } finally {
+            setClearingCache(false);
+        }
+    };
+
     const syncToDatabase = async () => {
         setDbSyncLoading(true);
         setDbSyncStatus("idle");
@@ -197,12 +225,24 @@ export default function ImportPage() {
                             <Button
                                 onClick={syncToRedis}
                                 className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl px-6 w-full sm:w-auto shrink-0 transition-all"
-                                disabled={redisLoading || redisStatus === "success"}
+                                disabled={redisLoading || redisStatus === "success" || clearingCache}
                             >
                                 {redisLoading ? (
                                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Syncing...</>
                                 ) : (
                                     <><DatabaseZap className="mr-2 h-4 w-4" /> Sync to Cache</>
+                                )}
+                            </Button>
+
+                            <Button
+                                onClick={handleClearCache}
+                                className="bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl px-6 w-full sm:w-auto shrink-0 transition-all"
+                                disabled={clearingCache || redisLoading}
+                            >
+                                {clearingCache ? (
+                                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Clearing...</>
+                                ) : (
+                                    <><Trash2 className="mr-2 h-4 w-4" /> Clear Cache</>
                                 )}
                             </Button>
                         </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Scanner } from "@yudiel/react-qr-scanner";
-import { validateTicketsBulk, TicketValidationResult, ValidationSummary } from "@/actions/scan-actions";
+import { validateTicketsBulk, TicketValidationResult, ValidationSummary, getTicketDetails, TicketRecord } from "@/actions/scan-actions";
 
 export default function QRScanner() {
   const [isScanning, setIsScanning] = useState(true);
@@ -11,6 +11,11 @@ export default function QRScanner() {
   const [selectedScanIndex, setSelectedScanIndex] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
+
+  // Modal State
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [selectedTicketDetails, setSelectedTicketDetails] = useState<TicketRecord | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   // New States for UI polish
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -91,6 +96,26 @@ export default function QRScanner() {
     }
 
     setIsProcessing(false);
+  };
+
+  const handleOpenDetails = async (qr: string) => {
+    setDetailsModalOpen(true);
+    setIsLoadingDetails(true);
+    setSelectedTicketDetails(null);
+
+    const { success, data, error } = await getTicketDetails(qr);
+    if (success && data) {
+      setSelectedTicketDetails(data);
+    } else {
+      // Display error nicely or close
+      console.error(error);
+    }
+    setIsLoadingDetails(false);
+  };
+
+  const closeDetailsModal = () => {
+    setDetailsModalOpen(false);
+    setSelectedTicketDetails(null);
   };
 
   return (
@@ -211,9 +236,28 @@ export default function QRScanner() {
                     </span>
                   </div>
                   {(res.type || res.vendor) && (
-                    <div className="flex items-center gap-2 mt-1">
-                      {res.type && <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">{res.type}</span>}
-                      {res.vendor && <span className="text-xs text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded">{res.vendor}</span>}
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-2">
+                        {res.type && <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">{res.type}</span>}
+                        {res.vendor && <span className="text-xs text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded">{res.vendor}</span>}
+                      </div>
+
+                      <button
+                        onClick={() => handleOpenDetails(res.qr)}
+                        className="text-[10px] font-bold uppercase tracking-wide bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-900 px-3 py-1.5 rounded hover:opacity-80 transition-opacity"
+                      >
+                        Details
+                      </button>
+                    </div>
+                  )}
+                  {(!res.type && !res.vendor) && (
+                    <div className="flex justify-end mt-1">
+                      <button
+                        onClick={() => handleOpenDetails(res.qr)}
+                        className="text-[10px] font-bold uppercase tracking-wide bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-900 px-3 py-1.5 rounded hover:opacity-80 transition-opacity"
+                      >
+                        Details
+                      </button>
                     </div>
                   )}
                 </div>
@@ -274,6 +318,98 @@ export default function QRScanner() {
           </div>
         )}
       </div>
+
+      {/* Details Modal Overlay */}
+      {detailsModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50">
+              <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Ticket Database Record</h3>
+              <button onClick={closeDetailsModal} className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto custom-scrollbar">
+              {isLoadingDetails ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-10">
+                  <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-sm font-medium text-zinc-500">Fetching direct from Supabase...</p>
+                </div>
+              ) : selectedTicketDetails ? (
+                <div className="flex flex-col gap-4">
+                  {/* Status header */}
+                  <div className={`p-3 rounded-xl border flex items-center gap-3
+                    ${selectedTicketDetails.valid === 1
+                      ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
+                      : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800'}`}>
+                    <div className={`w-3 h-3 rounded-full ${selectedTicketDetails.valid === 1 ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+                    <div>
+                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Current Status</p>
+                      <p className="font-bold text-zinc-900 dark:text-zinc-100">{selectedTicketDetails.valid === 1 ? 'UNUSED & VALID' : 'USED / INVALID'}</p>
+                    </div>
+                  </div>
+
+                  {/* Core Data Grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Type ID</p>
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100 truncate" title={selectedTicketDetails.typeid}>{selectedTicketDetails.typeid}</p>
+                    </div>
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Type Data</p>
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{selectedTicketDetails.type}</p>
+                    </div>
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Vendor ID</p>
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{selectedTicketDetails.vendor}</p>
+                    </div>
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">User ID</p>
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100 truncate" title={selectedTicketDetails.userid}>{selectedTicketDetails.userid || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Transaction ID</p>
+                    <p className="font-mono text-sm text-zinc-900 dark:text-zinc-100 break-all">{selectedTicketDetails.transactionid || 'N/A'}</p>
+                  </div>
+
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">QR Code Key</p>
+                    <p className="font-mono text-xs text-zinc-600 dark:text-zinc-400 break-all">{selectedTicketDetails.qr}</p>
+                  </div>
+
+                  {/* Timestamps */}
+                  <div className="space-y-2 mt-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500 font-medium">Created At:</span>
+                      <span className="text-zinc-900 dark:text-zinc-300 font-mono">{new Date(selectedTicketDetails.created).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500 font-medium">Checked/Updated:</span>
+                      <span className="text-zinc-900 dark:text-zinc-300 font-mono">{selectedTicketDetails.updated_at ? new Date(selectedTicketDetails.updated_at).toLocaleString() : 'Never'}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 text-center text-rose-500">
+                  <p>Could not load ticket data.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
+              <button
+                onClick={closeDetailsModal}
+                className="w-full py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-xl font-bold transition-colors text-zinc-900 dark:text-zinc-100"
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

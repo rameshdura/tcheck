@@ -290,6 +290,7 @@ export interface TicketRecord {
     transactionid: string;
     valid: number;
     vendor: number;
+    updated_at?: string;
 }
 
 export async function getPaginatedTickets(page: number, limit: number = 10): Promise<{ success: boolean; data?: TicketRecord[]; count?: number; error?: string }> {
@@ -312,6 +313,32 @@ export async function getPaginatedTickets(page: number, limit: number = 10): Pro
     } catch (err) {
         console.error("Unexpected error fetching paginated tickets:", err);
         return { success: false, error: "An unexpected error occurred while fetching." };
+    }
+}
+
+export async function getTicketDetails(qr: string): Promise<{ success: boolean; data?: TicketRecord; error?: string }> {
+    if (!qr) return { success: false, error: "QR code is required." };
+
+    try {
+        const { data, error } = await supabase
+            .from('tkt')
+            .select('*')
+            .eq('qr', qr)
+            .single();
+
+        if (error) {
+            console.error("Error fetching ticket details:", error);
+            // If it's a "no rows found" error, return a specific message
+            if (error.code === 'PGRST116') {
+                return { success: false, error: "Ticket not found in database." };
+            }
+            return { success: false, error: "Failed to fetch ticket from database." };
+        }
+
+        return { success: true, data: data as TicketRecord };
+    } catch (err) {
+        console.error("Unexpected error fetching ticket details:", err);
+        return { success: false, error: "An unexpected error occurred." };
     }
 }
 
@@ -408,11 +435,16 @@ export async function validateTicketsBulk(stagedQRs: string[]): Promise<{ succes
 
                 // 1. Update Redis instantly so it can't be scanned again
                 ticketData.valid = 0;
+
+                // Add timestamp
+                const checkedTime = new Date().toISOString();
+                ticketData.updated_at = checkedTime;
+
                 // Preserve expiration - we assume it has one, for simplicity we'll set it to 24h if we overwrite
                 updatePipeline.set(`ticket:${qr}`, JSON.stringify(ticketData), { ex: 24 * 60 * 60 });
 
-                // 2. Queue for database sync later
-                pendingUpdates.push(qr);
+                // 2. Queue for database sync later, passing both qr and checked time
+                pendingUpdates.push(JSON.stringify({ qr, checked_time: checkedTime }));
 
             } else {
                 // Ticket exists but is already marked as valid=0 (used)
@@ -427,8 +459,8 @@ export async function validateTicketsBulk(stagedQRs: string[]): Promise<{ succes
 
             // Push to the queue that the master DB sync function will read
             const queuePipeline = redis.pipeline();
-            for (const qr of pendingUpdates) {
-                queuePipeline.lpush('pending_ticket_updates', qr);
+            for (const updateStr of pendingUpdates) {
+                queuePipeline.lpush('pending_ticket_updates', updateStr);
             }
             await queuePipeline.exec();
         }
@@ -454,28 +486,56 @@ export async function syncTicketsToDatabase(): Promise<{ success: boolean; count
             return { success: true, count: 0 };
         }
 
-        // Deduplicate
-        const uniqueQRs = Array.from(new Set(pendingUpdates));
-
-        // Let's do a bulk update to supabase.
-        // Supabase "in" operator is best here: update valid=0 where qr in (uniqueQRs)
-        const { error } = await supabase
-            .from('tkt')
-            .update({ valid: 0 })
-            .in('qr', uniqueQRs);
-
-        if (error) {
-            console.error("Failed to sync used tickets to DB:", error);
-            // Restore to Redis so we don't lose them
-            const restorePipeline = redis.pipeline();
-            for (const qr of pendingUpdates) {
-                restorePipeline.lpush('pending_ticket_updates', qr);
+        // Parse and deduplicate (keeping the latest timestamp for each QR if there happens to be multiple)
+        const updateMap = new Map<string, string>();
+        for (const item of pendingUpdates) {
+            let parsed;
+            if (typeof item === 'string') {
+                try {
+                    parsed = JSON.parse(item);
+                } catch (e) {
+                    // Fallback for old simple string QR items still in queue
+                    updateMap.set(item, new Date().toISOString());
+                    continue;
+                }
+            } else {
+                parsed = item; // auto-parsed by upstash-redis sometimes
             }
-            await restorePipeline.exec();
-            return { success: false, error: "Failed to sync to database." };
+
+            if (parsed && typeof parsed === 'object' && parsed.qr) {
+                updateMap.set(parsed.qr, parsed.checked_time || new Date().toISOString());
+            } else if (typeof item === 'string') { // Just in case it's a raw string QR
+                updateMap.set(item, new Date().toISOString());
+            }
         }
 
-        return { success: true, count: uniqueQRs.length };
+        let syncedCount = 0;
+        let hasError = false;
+
+        // Perform individual updates because each ticket has a different checked_time.
+        // Using Promise.all is fine for reasonable batch sizes.
+        const updatePromises = Array.from(updateMap.entries()).map(async ([qr, checkedTime]) => {
+            const { error } = await supabase
+                .from('tkt')
+                .update({ valid: 0, updated_at: checkedTime })
+                .eq('qr', qr);
+
+            if (error) {
+                console.error(`Failed to sync used ticket ${qr} to DB:`, error);
+                hasError = true;
+                // Optional: individual retry push back could go here, but for now we'll track failure
+            } else {
+                syncedCount++;
+            }
+        });
+
+        await Promise.all(updatePromises);
+
+        if (hasError) {
+            return { success: false, count: syncedCount, error: "Some tickets failed to sync to the database." };
+        }
+
+        return { success: true, count: syncedCount };
     } catch (err) {
         console.error("Unexpected error syncing used tickets to DB:", err);
         return { success: false, error: "An unexpected error occurred during DB sync." };

@@ -5,6 +5,7 @@ CREATE TABLE tkt (
   typeid text,
   type smallint CHECK (type BETWEEN 1 AND 9),
   created timestamp with time zone,
+  updated_at timestamp with time zone,
   userId text,
   transactionId text,
   valid smallint CHECK (valid IN (0, 1)),
