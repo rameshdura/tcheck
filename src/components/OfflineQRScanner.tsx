@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Scanner } from "@yudiel/react-qr-scanner";
+import { Scanner, type IDetectedBarcode } from "@yudiel/react-qr-scanner";
 import {
     offlineValidateTicketsBulk,
     offlineGetTicketDetails,
@@ -35,7 +35,7 @@ export default function OfflineQRScanner() {
         }
     }, [duplicateWarning]);
 
-    const handleScan = (result: any) => {
+    const handleScan = (result: IDetectedBarcode[]) => {
         if (!isScanning) return;
         let qrValue = "";
         if (result && result.length > 0) qrValue = result[0].rawValue;

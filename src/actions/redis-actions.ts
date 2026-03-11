@@ -41,9 +41,9 @@ export async function bulkImportToRedis(tickets: TicketRedisPayload[], expiratio
         await pipeline.exec();
 
         return { success: true, count: tickets.length };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Redis bulk import error:", error);
-        return { success: false, error: error.message || "Failed to import to Redis" };
+        return { success: false, error: error instanceof Error ? error.message : "Failed to import to Redis" };
     }
 }
 
@@ -105,9 +105,9 @@ export async function syncSupabaseToRedis(expirationHours: number) {
         await pipeline.exec();
 
         return { success: true, count: tickets.length };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Redis sync error:", error);
-        return { success: false, error: error.message || "Failed to sync Supabase to Redis" };
+        return { success: false, error: error instanceof Error ? error.message : "Failed to sync Supabase to Redis" };
     }
 }
 
@@ -115,8 +115,8 @@ export async function clearRedisCache() {
     try {
         await redis.flushdb();
         return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Redis clear cache error:", error);
-        return { success: false, error: error.message || "Failed to clear Redis cache" };
+        return { success: false, error: error instanceof Error ? error.message : "Failed to clear Redis cache" };
     }
 }

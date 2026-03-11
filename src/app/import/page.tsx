@@ -54,7 +54,7 @@ export default function ImportPage() {
         setDbSyncStatus("idle");
         setDbSyncMessage("");
 
-        Papa.parse<any>(file, {
+        Papa.parse<Record<string, string>>(file, {
             header: true,
             skipEmptyLines: true,
             complete: (results) => {
@@ -104,10 +104,10 @@ export default function ImportPage() {
             setMessage(`Successfully imported ${data.length} tickets!`);
             // Optional: clear data after successful import
             // setData([]); 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Import error:", error);
             setStatus("error");
-            setMessage(error.message || "An unexpected error occurred during import.");
+            setMessage(error instanceof Error ? error.message : "An unexpected error occurred during import.");
         } finally {
             setLoading(false);
         }
@@ -127,10 +127,10 @@ export default function ImportPage() {
 
             setRedisStatus("success");
             setRedisMessage(`Successfully cached ${result.count} tickets from database to Redis!`);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Redis sync error:", error);
             setRedisStatus("error");
-            setRedisMessage(error.message || "Failed to cache in Redis.");
+            setRedisMessage(error instanceof Error ? error.message : "Failed to cache in Redis.");
         } finally {
             setRedisLoading(false);
         }
@@ -154,10 +154,10 @@ export default function ImportPage() {
 
             setRedisStatus("success");
             setRedisMessage("Redis cache cleared successfully");
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Redis clear cache error:", error);
             setRedisStatus("error");
-            setRedisMessage(error.message || "Failed to clear cache.");
+            setRedisMessage(error instanceof Error ? error.message : "Failed to clear cache.");
         } finally {
             setClearingCache(false);
         }
@@ -179,10 +179,10 @@ export default function ImportPage() {
             setDbSyncMessage(result.count === 0
                 ? "No new used tickets to sync."
                 : `Successfully updated ${result.count} used tickets back to database!`);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("DB sync error:", error);
             setDbSyncStatus("error");
-            setDbSyncMessage(error.message || "Failed to sync to database.");
+            setDbSyncMessage(error instanceof Error ? error.message : "Failed to sync to database.");
         } finally {
             setDbSyncLoading(false);
         }

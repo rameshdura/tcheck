@@ -37,7 +37,7 @@ export default function OfflineImportPage() {
         setDbSyncStatus("idle");
         setDbSyncMessage("");
 
-        Papa.parse<any>(file, {
+        Papa.parse<Record<string, string>>(file, {
             header: true,
             skipEmptyLines: true,
             complete: (results) => {

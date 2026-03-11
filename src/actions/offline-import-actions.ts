@@ -1,7 +1,6 @@
 "use server";
 
 import { prisma } from "@/lib/local-db";
-import { localRedis } from "@/lib/local-redis";
 
 // ---- Import tickets from CSV into SQLite ----
 
@@ -65,8 +64,8 @@ export async function offlineImportTickets(tickets: OfflineTicketImport[]) {
         }
 
         return { success: true, count };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Offline import error:", error);
-        return { success: false, error: error.message || "Import failed" };
+        return { success: false, error: error instanceof Error ? error.message : "Import failed" };
     }
 }

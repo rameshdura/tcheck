@@ -9,7 +9,7 @@ export default async function AllQRsPage(props: { searchParams: Promise<{ page?:
     const currentPage = parseInt(searchParams.page || "1", 10);
     const pageSize = 10;
 
-    const { success, data, count, error } = await getPaginatedTickets(currentPage, pageSize);
+    const { data, count, error } = await getPaginatedTickets(currentPage, pageSize);
 
     return (
         <div className="flex min-h-screen bg-zinc-50 font-sans dark:bg-zinc-950 p-4 gap-4 flex-col lg:flex-row items-start justify-center">

@@ -37,9 +37,9 @@ export async function offlineSyncDbToRedis(expirationHours: number) {
 
         await pipeline.exec();
         return { success: true, count: tickets.length };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Offline Redis sync error:", error);
-        return { success: false, error: error.message || "Failed to sync to local Redis" };
+        return { success: false, error: error instanceof Error ? error.message : "Failed to sync to local Redis" };
     }
 }
 
@@ -49,8 +49,8 @@ export async function offlineClearRedisCache() {
     try {
         await localRedis.flushdb();
         return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Offline Redis clear error:", error);
-        return { success: false, error: error.message || "Failed to clear local Redis cache" };
+        return { success: false, error: error instanceof Error ? error.message : "Failed to clear local Redis cache" };
     }
 }

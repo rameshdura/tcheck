@@ -191,7 +191,7 @@ export async function syncCacheToDatabase(): Promise<{ success: boolean; count?:
             for (const item of pendingInsertsObj) {
                 let parsed;
                 if (typeof item === 'string') {
-                    try { parsed = JSON.parse(item); } catch (e) { continue; }
+                    try { parsed = JSON.parse(item); } catch { continue; }
                 } else {
                     parsed = item; // auto-parsed
                 }
@@ -240,7 +240,7 @@ export async function syncCacheToDatabase(): Promise<{ success: boolean; count?:
             for (const item of pendingUpdatesObj) {
                 let parsed;
                 if (typeof item === 'string') {
-                    try { parsed = JSON.parse(item); } catch (e) { continue; }
+                    try { parsed = JSON.parse(item); } catch { continue; }
                 } else {
                     parsed = item; // auto-parsed
                 }
@@ -402,7 +402,7 @@ export async function validateTicketsBulk(stagedQRs: string[]): Promise<{ succes
 
             let ticketData;
             if (typeof rawRedisResult === 'string') {
-                try { ticketData = JSON.parse(rawRedisResult); } catch (e) { /* ignore */ }
+                try { ticketData = JSON.parse(rawRedisResult); } catch { /* ignore */ }
             } else {
                 ticketData = rawRedisResult;
             }
@@ -483,7 +483,7 @@ export async function syncTicketsToDatabase(): Promise<{ success: boolean; count
             if (typeof item === 'string') {
                 try {
                     parsed = JSON.parse(item);
-                } catch (e) {
+                } catch {
                     // Fallback for old simple string QR items still in queue
                     updateMap.set(item, new Date().toISOString());
                     continue;

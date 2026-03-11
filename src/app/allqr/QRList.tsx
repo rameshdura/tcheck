@@ -3,7 +3,6 @@
 import { TicketRecord } from "@/actions/scan-actions";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import QRCode from "react-qr-code";
 
 interface QRListProps {

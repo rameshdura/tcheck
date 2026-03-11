@@ -71,9 +71,9 @@ export async function offlineGetPaginatedTickets(
             })),
             count: total,
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Offline paginated fetch error:", error);
-        return { success: false, error: error.message || "Failed to fetch tickets" };
+        return { success: false, error: error instanceof Error ? error.message : "Failed to fetch tickets" };
     }
 }
 
@@ -108,7 +108,7 @@ export async function offlineGetTicketDetails(
                 updated_at: ticket.updated_at ? ticket.updated_at.toISOString() : null,
             },
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Offline ticket details error:", error);
         return { success: false, error: "Failed to fetch ticket from local DB." };
     }
@@ -157,9 +157,9 @@ export async function offlineValidateTicketsBulk(stagedQRs: string[]): Promise<{
                 continue;
             }
 
-            let ticketData: any;
+            let ticketData: { type: number; valid: number; vendor: number; updated_at?: string | null };
             try {
-                ticketData = JSON.parse(rawValue);
+                ticketData = JSON.parse(rawValue) as typeof ticketData;
             } catch {
                 validationResults.push({ qr, status: "ERROR" });
                 summary.invalidCount++;
@@ -198,9 +198,9 @@ export async function offlineValidateTicketsBulk(stagedQRs: string[]): Promise<{
         }
 
         return { success: true, results: validationResults, summary };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Offline bulk validation error:", error);
-        return { success: false, error: "Validation failed: " + error.message };
+        return { success: false, error: "Validation failed: " + (error instanceof Error ? error.message : String(error)) };
     }
 }
 
@@ -259,8 +259,8 @@ export async function offlineSyncTicketsToDatabase(): Promise<{
         }
 
         return { success: true, count: syncedCount };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Offline DB sync error:", error);
-        return { success: false, error: error.message || "Sync failed" };
+        return { success: false, error: error instanceof Error ? error.message : "Sync failed" };
     }
 }
