@@ -22,7 +22,9 @@
 
 # misc
 .DS_Store
-*.pem
+# machine-specific TLS certs (regenerated per-IP by start-offline.sh)
+/certs/localhost.pem
+/certs/localhost-key.pem
 
 # debug
 npm-debug.log*
@@ -39,3 +41,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# offline local mode
+# rootCA.pem and rootCA.crt ARE committed so phones can download and trust them
+# Only machine-specific localhost certs are excluded (already listed in misc above)
+# The SQLite DB is generated per-machine via: npm run prisma:push
+/prisma/*.db
+/prisma/*.db-journal
+/prisma/*.db-shm
+/prisma/*.db-wal
+# Prisma migrations should be committed so new machines can recreate the schema
+!prisma/migrations/

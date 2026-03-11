@@ -1,0 +1,31 @@
+// Prisma schema for local offline mode (SQLite)
+// Mirrors the Supabase tkt table exactly
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./tcheck-offline.db"
+}
+
+model Tkt {
+  id            String    @id @default(uuid())
+  qr            String    @unique
+  name          String?
+  phone         String?
+  typeid        String?
+  type          Int?
+  created       DateTime?
+  updated_at    DateTime?
+  userId        String?
+  transactionId String?
+  valid         Int?      @default(1)
+  vendor        Int?      @default(1)
+
+  @@index([qr])
+  @@index([vendor])
+  @@index([valid])
+  @@map("tkt")
+}
